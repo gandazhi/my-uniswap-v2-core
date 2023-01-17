@@ -4,12 +4,21 @@ import './interfaces/IUniswapV2Factory.sol';
 import './UniswapV2Pair.sol';
 
 contract UniswapV2Factory is IUniswapV2Factory {
+    // 收取交易手续费地址
     address public feeTo;
+    // 设置交易手续费控制权限地址
     address public feeToSetter;
-
+    // 获取配对合约地址  token0 => (token1 => pair)
     mapping(address => mapping(address => address)) public getPair;
+    // 所有配对合约地址数组
     address[] public allPairs;
-
+    /**
+        事件 创建配对合约
+        token0: token0地址 index将参数作为topic处理 可以作为条件筛选过滤
+        token1: token1地址 index将参数作为topic处理 可以作为条件筛选过滤
+        pair: 配对合约地址
+        uint: allPairs数组长度--可以当作序号
+     */ 
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
     constructor(address _feeToSetter) public {
