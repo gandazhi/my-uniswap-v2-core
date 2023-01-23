@@ -12,9 +12,12 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     using SafeMath  for uint;
     using UQ112x112 for uint224;
 
+    // 最小流通性
     uint public constant MINIMUM_LIQUIDITY = 10**3;
+    // 合约中发方法转成bytes再hash最后取前4位就是合约方法的selecetor
     bytes4 private constant SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)')));
 
+    // 工厂合约的地址
     address public factory;
     address public token0;
     address public token1;
@@ -28,6 +31,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     uint public kLast; // reserve0 * reserve1, as of immediately after the most recent liquidity event
 
     uint private unlocked = 1;
+    // 可重入锁
     modifier lock() {
         require(unlocked == 1, 'UniswapV2: LOCKED');
         unlocked = 0;
@@ -42,6 +46,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     }
 
     function _safeTransfer(address token, address to, uint value) private {
+        // 目标合约地址.call(abi.encodeWithSelector("函数选择器", 逗号分隔的具体参数)); 它的返回值为(bool, data)，分别对应call是否成功以及目标函数的返回值。
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(SELECTOR, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), 'UniswapV2: TRANSFER_FAILED');
     }
@@ -63,6 +68,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     }
 
     // called once by the factory at time of deployment
+    // factory合约创建的时候，调用一次
     function initialize(address _token0, address _token1) external {
         require(msg.sender == factory, 'UniswapV2: FORBIDDEN'); // sufficient check
         token0 = _token0;
