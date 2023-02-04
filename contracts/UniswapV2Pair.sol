@@ -12,9 +12,9 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     using SafeMath  for uint;
     using UQ112x112 for uint224;
 
-    // 最小流通性
+    // 最小流通性 1000
     uint public constant MINIMUM_LIQUIDITY = 10**3;
-    // 合约中发方法转成bytes再hash最后取前4位就是合约方法的selecetor
+    // 合约中把方法转成bytes再hash最 后取前4位就是合约方法的selecetor
     bytes4 private constant SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)')));
 
     // 工厂合约的地址
@@ -22,12 +22,15 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     address public token0;
     address public token1;
 
-    uint112 private reserve0;           // uses single storage slot, accessible via getReserves
+    uint112 private reserve0;           // uses single storage slot, accessible via getReserves  相当于balanceOf(token0) token0剩余数量
     uint112 private reserve1;           // uses single storage slot, accessible via getReserves
-    uint32  private blockTimestampLast; // uses single storage slot, accessible via getReserves
+    uint32  private blockTimestampLast; // uses single storage slot, accessible via getReserves 最后更新时间戳
 
+    // 价格0最后累计
     uint public price0CumulativeLast;
+    // 价格1最后累计
     uint public price1CumulativeLast;
+    // 最后一次流动性事件之后的K值 reserve0 * reseerve1 = kLast 在最近的流动性事件之后立即生效
     uint public kLast; // reserve0 * reserve1, as of immediately after the most recent liquidity event
 
     uint private unlocked = 1;
@@ -39,6 +42,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         unlocked = 1;
     }
 
+    // 获取剩余代币数量和最后更新时间戳
     function getReserves() public view returns (uint112 _reserve0, uint112 _reserve1, uint32 _blockTimestampLast) {
         _reserve0 = reserve0;
         _reserve1 = reserve1;
@@ -48,11 +52,15 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     function _safeTransfer(address token, address to, uint value) private {
         // 目标合约地址.call(abi.encodeWithSelector("函数选择器", 逗号分隔的具体参数)); 它的返回值为(bool, data)，分别对应call是否成功以及目标函数的返回值。
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(SELECTOR, to, value));
+        // 确认返回值为true并且响应长度大于0或者解码为true
         require(success && (data.length == 0 || abi.decode(data, (bool))), 'UniswapV2: TRANSFER_FAILED');
     }
 
+    // 铸造事件
     event Mint(address indexed sender, uint amount0, uint amount1);
+    // 销毁时间
     event Burn(address indexed sender, uint amount0, uint amount1, address indexed to);
+    // 交换事件
     event Swap(
         address indexed sender,
         uint amount0In,
@@ -61,6 +69,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         uint amount1Out,
         address indexed to
     );
+    // 同步事件
     event Sync(uint112 reserve0, uint112 reserve1);
 
     constructor() public {
