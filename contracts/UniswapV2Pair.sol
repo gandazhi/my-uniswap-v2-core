@@ -22,7 +22,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     address public token0;
     address public token1;
 
-    uint112 private reserve0;           // uses single storage slot, accessible via getReserves  相当于balanceOf(token0) token0剩余数量
+    uint112 private reserve0;           // uses single storage slot, accessible via getReserves
     uint112 private reserve1;           // uses single storage slot, accessible via getReserves
     uint32  private blockTimestampLast; // uses single storage slot, accessible via getReserves 最后更新时间戳
 
@@ -102,17 +102,30 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
 
     // if fee is on, mint liquidity equivalent to 1/6th of the growth in sqrt(k)
     function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool feeOn) {
+        // 获取feeTo地址
         address feeTo = IUniswapV2Factory(factory).feeTo();
+        // 如果工厂合约没有设置feeTo地址，则feeOn为false否则为true
         feeOn = feeTo != address(0);
+        // 定义k值
         uint _kLast = kLast; // gas savings
         if (feeOn) {
             if (_kLast != 0) {
+                // 计算（resever0×reserve1）的平方根
                 uint rootK = Math.sqrt(uint(_reserve0).mul(_reserve1));
+                // 计算k值的平方根
                 uint rootKLast = Math.sqrt(_kLast);
                 if (rootK > rootKLast) {
+                    /**
+                    计算流动性公式:
+                        liquidity = totalSupply * (rootK - rootKLast) / 5 * rootK + rootKLast
+                     */
+                    // 计算分子 UNI-V2总量 * (rootK - rootKLast)
                     uint numerator = totalSupply.mul(rootK.sub(rootKLast));
+                    // 计算分母 5 * rootK + rootKLast
                     uint denominator = rootK.mul(5).add(rootKLast);
+                    // 计算流动性 分子 / 分母
                     uint liquidity = numerator / denominator;
+                    // 如果流动性＞0 将流动性代币铸造给feeTo地址
                     if (liquidity > 0) _mint(feeTo, liquidity);
                 }
             }
@@ -121,12 +134,18 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         }
     }
 
+    // 铸造 
     // this low-level function should be called from a contract which performs important safety checks
     function mint(address to) external lock returns (uint liquidity) {
+        // 获取储备量0、储备量1
         (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
+        // 该配对合约地址中token0的代币数
         uint balance0 = IERC20(token0).balanceOf(address(this));
+        // 该配对合约地址中token1的代币数
         uint balance1 = IERC20(token1).balanceOf(address(this));
+        // amount0 = 余额0 - 储备量0
         uint amount0 = balance0.sub(_reserve0);
+        // amount1 = 余额1 - 储备量1
         uint amount1 = balance1.sub(_reserve1);
 
         bool feeOn = _mintFee(_reserve0, _reserve1);
