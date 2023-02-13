@@ -147,16 +147,22 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         uint amount0 = balance0.sub(_reserve0);
         // amount1 = 余额1 - 储备量1
         uint amount1 = balance1.sub(_reserve1);
-
+        // 返回铸造费开关 如果工厂合约没有设置feeTo地址，则feeOn为false否则为true
         bool feeOn = _mintFee(_reserve0, _reserve1);
+        // 获取totalSupply 这里必须定义 因为在并发情况下totalSupply可能会在_mintFee中更新 
         uint _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
         if (_totalSupply == 0) {
+            // 流动性 = (amount0 * amount1)的平方根 - 最小流动性1000
             liquidity = Math.sqrt(amount0.mul(amount1)).sub(MINIMUM_LIQUIDITY);
+            // 在总量为0的初始情况下，永久锁定最低流动性
            _mint(address(0), MINIMUM_LIQUIDITY); // permanently lock the first MINIMUM_LIQUIDITY tokens
         } else {
+            // 流动性 = (amount0 * _totalSupply / _reserve0) (amount1 * _totalSupply / _reserve1) 取最小值
             liquidity = Math.min(amount0.mul(_totalSupply) / _reserve0, amount1.mul(_totalSupply) / _reserve1);
         }
+        // 确保流动性大于0 
         require(liquidity > 0, 'UniswapV2: INSUFFICIENT_LIQUIDITY_MINTED');
+        // 铸造流动性给to地址
         _mint(to, liquidity);
 
         _update(balance0, balance1, _reserve0, _reserve1);
