@@ -153,7 +153,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     }
 
     /**
-    添加储备量的时候，铸造流动性代币，流动性代币用于记录在流动性池中所拥有的数值
+    添加储备量的时候，铸造流动性代币给用户，流动性代币用于记录在流动性池中所拥有的数值
      */
     // 铸造 应该从执行重要安全检查的合约中调用此低级功能
     // this low-level function should be called from a contract which performs important safety checks
@@ -193,28 +193,52 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         emit Mint(msg.sender, amount0, amount1);
     }
 
+    /**
+    路由合约调用
+    销毁用户指定的流动性数值，根据流动性数值，按照比例计算出可以提取的token值，提取
+     */
+    // 销毁方法 应该从执行重要安全检查的合约中调用此低级功能
     // this low-level function should be called from a contract which performs important safety checks
     function burn(address to) external lock returns (uint amount0, uint amount1) {
+        // 获取token0和token1点储备量
         (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
+        // token0 合约地址
         address _token0 = token0;                                // gas savings
+        // token1 合约地址
         address _token1 = token1;                                // gas savings
+        // 获取当前合约在token0合约中的余额
         uint balance0 = IERC20(_token0).balanceOf(address(this));
+        // 获取当前合约在token1合约中的余额
         uint balance1 = IERC20(_token1).balanceOf(address(this));
+        // 获取当前合约的流动性 在路由合约中会先把用户移除的流动性转到配对合约中 
         uint liquidity = balanceOf[address(this)];
 
+        // 获取铸造费开关
         bool feeOn = _mintFee(_reserve0, _reserve1);
+        // 获取流动性总量 必须在这里用临时变量获取，因为可能会在_mintFee方法中更新
         uint _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
+        // 计算token0的数量 销毁的流动性值 * token0剩余的数量 / 流动性池总量 使用余额确保按比例分配
         amount0 = liquidity.mul(balance0) / _totalSupply; // using balances ensures pro-rata distribution
+        // 计算token1的数量 销毁的流动性值 * token1剩余的数据 / 流动性池总量 使用余额确保按比例分配
         amount1 = liquidity.mul(balance1) / _totalSupply; // using balances ensures pro-rata distribution
+        // 确保提取的token0和token1的数据大于0
         require(amount0 > 0 && amount1 > 0, 'UniswapV2: INSUFFICIENT_LIQUIDITY_BURNED');
+        // 销毁流动性
         _burn(address(this), liquidity);
+        // 向用户to地址转token0
         _safeTransfer(_token0, to, amount0);
+        // 向用户to地址转token1
         _safeTransfer(_token1, to, amount1);
+        // 更新配对合约中的 token0余额
         balance0 = IERC20(_token0).balanceOf(address(this));
+        // 更新配对合约中的 token1余额
         balance1 = IERC20(_token1).balanceOf(address(this));
 
+        // 更新储备量
         _update(balance0, balance1, _reserve0, _reserve1);
+        // 如果铸造费开发打开 重新计算kLast值
         if (feeOn) kLast = uint(reserve0).mul(reserve1); // reserve0 and reserve1 are up-to-date
+        // 触发销毁事件
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
