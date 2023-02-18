@@ -26,6 +26,12 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     uint112 private reserve1;           // uses single storage slot, accessible via getReserves
     uint32  private blockTimestampLast; // uses single storage slot, accessible via getReserves 最后更新时间戳
 
+    /**
+    记录在上一次交易发生后，token0的累计价格变化（以token1点价格计价）
+    主要用于计算交易时的价格更新；
+    如果token0的累计价格变化大于0 则使用price0CumulativeLast作为新的价格
+    如果token0的累计价格变化小于0 则使用price1CumulativeLast作为新的价格
+     */
     // 价格0最后累计
     uint public price0CumulativeLast;
     // 价格1最后累计
@@ -84,19 +90,30 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         token1 = _token1;
     }
 
+    // 更新储备量 并且每个区块链第一次调用的时候更新价格累加器
     // update reserves and, on the first call per block, price accumulators
     function _update(uint balance0, uint balance1, uint112 _reserve0, uint112 _reserve1) private {
+        // 确保token0余额和token1余额都大于0
         require(balance0 <= uint112(-1) && balance1 <= uint112(-1), 'UniswapV2: OVERFLOW');
+        // 当前时间戳转换为uint32
         uint32 blockTimestamp = uint32(block.timestamp % 2**32);
+        // 对比当前时间戳与上一次更新时间戳 计算时间流逝
         uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+        // 前时间戳 - 上一次更新时间戳 > 0 并且 储备量0不等于0 并且 储备量1不等于0
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
             // * never overflows, and + overflow is desired
+            // 价格0最后累计 += 储备量1 * 2 * 112 / 储备量 0 * 时间流逝
             price0CumulativeLast += uint(UQ112x112.encode(_reserve1).uqdiv(_reserve0)) * timeElapsed;
+            // 价格1最后累计 += 储备量0 * 2 * 112 / 储备量 1 * 时间流逝
             price1CumulativeLast += uint(UQ112x112.encode(_reserve0).uqdiv(_reserve1)) * timeElapsed;
         }
+        // 更新储备量0
         reserve0 = uint112(balance0);
+        // 更新储备量1
         reserve1 = uint112(balance1);
+        // 更新最后时间戳
         blockTimestampLast = blockTimestamp;
+        // 出发同步时间
         emit Sync(reserve0, reserve1);
     }
 
@@ -134,7 +151,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         }
     }
 
-    // 铸造 
+    // 铸造 应该从执行重要安全检查的合约中调用此低级功能
     // this low-level function should be called from a contract which performs important safety checks
     function mint(address to) external lock returns (uint liquidity) {
         // 获取储备量0、储备量1
@@ -164,9 +181,11 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         require(liquidity > 0, 'UniswapV2: INSUFFICIENT_LIQUIDITY_MINTED');
         // 铸造流动性给to地址
         _mint(to, liquidity);
-
+        // 更新储备量
         _update(balance0, balance1, _reserve0, _reserve1);
+        // 如果铸造费开关开了 kLast = 储备量0 * 储备量1 更新最后流动性K值
         if (feeOn) kLast = uint(reserve0).mul(reserve1); // reserve0 and reserve1 are up-to-date
+        // 触发铸造事件
         emit Mint(msg.sender, amount0, amount1);
     }
 
