@@ -27,6 +27,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     uint32  private blockTimestampLast; // uses single storage slot, accessible via getReserves 最后更新时间戳
 
     /**
+    在价格预言机中会使用到
     记录在上一次交易发生后，token0的累计价格变化（以token1点价格计价）
     主要用于计算交易时的价格更新；
     如果token0的累计价格变化大于0 则使用price0CumulativeLast作为新的价格
@@ -151,6 +152,9 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         }
     }
 
+    /**
+    添加储备量的时候，铸造流动性代币，流动性代币用于记录在流动性池中所拥有的数值
+     */
     // 铸造 应该从执行重要安全检查的合约中调用此低级功能
     // this low-level function should be called from a contract which performs important safety checks
     function mint(address to) external lock returns (uint liquidity) {
