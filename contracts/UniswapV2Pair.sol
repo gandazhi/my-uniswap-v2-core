@@ -242,34 +242,47 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
+    /**
+    交换方法 路由合约中调用该方法
+    当用户想将代币0兑换成代币1时，amount0In 表示用户想要输入代币0的数量，而amount0Out表示用户能够获得代币1的数量
+     */
     // this low-level function should be called from a contract which performs important safety checks
     function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external lock {
+        // 验证amount0Out和amount1Out中必须有1个大于0 一个为取出的金额 另一个则是0
         require(amount0Out > 0 || amount1Out > 0, 'UniswapV2: INSUFFICIENT_OUTPUT_AMOUNT');
+        // 获取储备量
         (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
+        // 验证待取出的金额必须小于储备量
         require(amount0Out < _reserve0 && amount1Out < _reserve1, 'UniswapV2: INSUFFICIENT_LIQUIDITY');
 
         uint balance0;
         uint balance1;
-        { // scope for _token{0,1}, avoids stack too deep errors
-        address _token0 = token0;
-        address _token1 = token1;
-        require(to != _token0 && to != _token1, 'UniswapV2: INVALID_TO');
-        if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out); // optimistically transfer tokens
-        if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out); // optimistically transfer tokens
-        if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
-        balance0 = IERC20(_token0).balanceOf(address(this));
-        balance1 = IERC20(_token1).balanceOf(address(this));
+        { // scope for _token{0,1}, avoids stack too deep errors 表计token0和token1的作用域，避免堆栈太深的错误
+            address _token0 = token0;
+            address _token1 = token1;
+            // 验证to地址不是_token0和_token1
+            require(to != _token0 && to != _token1, 'UniswapV2: INVALID_TO');
+            // 将待取出的token和金额转到to地址
+            if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out); // optimistically transfer tokens
+            if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out); // optimistically transfer tokens
+            // 路由合约中调用可以设置data 如果data的长度大于0 回调to地址合约的接口
+            if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
+            // 获取 token0和token1的余额 路由合约在调用swap方法之前。需要配对合约发送要兑换的代币。这让合约可以方便检查他有没有收到欺骗。必须检查，因为其他外围合约也可以调用该方法
+            balance0 = IERC20(_token0).balanceOf(address(this));
+            balance1 = IERC20(_token1).balanceOf(address(this));
         }
+        // 计算用户要输入token0、token1的数量
         uint amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
         uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
         require(amount0In > 0 || amount1In > 0, 'UniswapV2: INSUFFICIENT_INPUT_AMOUNT');
-        { // scope for reserve{0,1}Adjusted, avoids stack too deep errors
-        uint balance0Adjusted = balance0.mul(1000).sub(amount0In.mul(3));
-        uint balance1Adjusted = balance1.mul(1000).sub(amount1In.mul(3));
-        require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000**2), 'UniswapV2: K');
+        { // scope for reserve{0,1}Adjusted, avoids stack too deep errors 验证是否在路由合约中扣除手续费
+            uint balance0Adjusted = balance0.mul(1000).sub(amount0In.mul(3));
+            uint balance1Adjusted = balance1.mul(1000).sub(amount1In.mul(3));
+            require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000**2), 'UniswapV2: K');
         }
-
+        // 更新储备量
         _update(balance0, balance1, _reserve0, _reserve1);
+        // 出发交换事件
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
