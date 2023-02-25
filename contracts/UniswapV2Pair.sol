@@ -257,7 +257,7 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
 
         uint balance0;
         uint balance1;
-        { // scope for _token{0,1}, avoids stack too deep errors 表计token0和token1的作用域，避免堆栈太深的错误
+        { // scope for _token{0,1}, avoids stack too deep errors 标计token0和token1的作用域，避免堆栈太深的错误
             address _token0 = token0;
             address _token1 = token1;
             // 验证to地址不是_token0和_token1
@@ -286,14 +286,16 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
+    // 强制平衡以匹配储备
     // force balances to match reserves
-    function skim(address to) external lock {
+    function p(address to) external lock {
         address _token0 = token0; // gas savings
         address _token1 = token1; // gas savings
         _safeTransfer(_token0, to, IERC20(_token0).balanceOf(address(this)).sub(reserve0));
         _safeTransfer(_token1, to, IERC20(_token1).balanceOf(address(this)).sub(reserve1));
     }
 
+    // 强制准备金与余额匹配
     // force reserves to match balances
     function sync() external lock {
         _update(IERC20(token0).balanceOf(address(this)), IERC20(token1).balanceOf(address(this)), reserve0, reserve1);
